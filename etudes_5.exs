@@ -30,43 +30,39 @@ defmodule AskArea do
 	require String
 
 	def area() do
-		try do
-			shape = get_shape()
-			{a, b} = case shape do
-				:rectangle -> get_dimensions("Give rectangle width >", "Give rectangle height >")
-				:triangle -> get_dimensions("Give triangle base width >", "Give triangle height >")
-				:ellipse -> get_dimensions("Give ellipse major radius >", "Give ellipse minor radius >")
-			end
-			calculate(shape, a, b)
-		catch
-			{:error, msg} -> IO.puts msg
-		end			
+		{shape, value} = get_shape()
+		{a, b} = case shape do
+			:rectangle -> get_dimensions("Give rectangle width > ", "Give rectangle height > ")
+			:triangle -> get_dimensions("Give triangle base width > ", "Give triangle height > ")
+			:ellipse -> get_dimensions("Give ellipse major radius > ", "Give ellipse minor radius > ")
+			:unknown -> {value, value}
+		end
+		calculate(shape, a, b)
 	end
 
 	def get_shape() do
-		input = IO.gets "R)ectangle, T)riangle, or E)llipse: "
-		char = String.upcase(String.first(String.strip(input)))
+		input = IO.gets "R)ectangle, T)riangle, or E)llipse > "
+		char = String.strip(input) |> String.first
 		case char  do
 			"R" -> {:rectangle, nil}
 			"T" -> {:triangle, nil}
 			"E" -> {:ellipse, nil}
-			"B" -> throw :error
-			_ -> throw {:error, "Unknown shape type given, #{char}"}
+			_ -> {:unknown, char}
 		end
 	end
 
 	def get_number(prompt) do
-		input = IO.gets "Enter #{prompt} >"
-		String.to_integer(String.strip(input))
+		input = IO.gets "Enter #{prompt}" 
+		number = String.strip(input) |> String.to_integer
 	end
 
 	def get_dimensions(prompt1, prompt2) do
 		{get_number(prompt1), get_number(prompt2)}
 	end
 
-	def calculate(shape, a, b) do	
+	def calculate(shape, a, b) do
 		cond do
-			shape == :unknown -> IO.puts "Invalid shape given #{shape}"
+			shape == :unknown -> IO.puts "Invalid shape given #{shape} #{a}"
 			a < 0 or b < 0 -> IO.puts "Value of #{a} and #{b} must be greater or equal to zero"
 			true -> IO.puts "Area of #{shape} with #{a} and #{b} is #{Geom.area(shape, a, b)}"
 		end
@@ -79,6 +75,7 @@ defmodule Dates do
 	end
 end
 
-# AskArea.area()
+AskArea.area()
 
 IO.puts "#{inspect Dates.date_parts("2013-06-15")}"
+
