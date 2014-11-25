@@ -49,9 +49,7 @@ defmodule Geography do
 
 	defp parse_parts([name, population, latitude, longitude], [current | countries]) do 
 		city = %City{name: name, population: population, latitude: latitude, longitude: longitude}
-		cities = [city | current.cities]
-		current = %{current | cities: cities}		
-		[current | countries]
+		[%{current | cities: [city | current.cities]} | countries]
 	end
 end
 
