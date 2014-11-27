@@ -28,6 +28,48 @@ defmodule Calculus do
   end
 end
 
+defmodule Dates do
+
+  def julian(date) do
+    [year, month, day] = date_parts(date)
+    {month_days, _} = Enum.split([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31], month-1)
+    days = List.foldl(month_days, 0, &(&1+&2)) + day
+    if month > 2 && is_leap_year(year) do
+      days = days + 1
+    end
+    days
+  end
+
+  defp date_parts(date) do
+    for s <- String.split(date, "-"), do: String.to_integer(s)
+  end
+
+  defp is_leap_year(year) do
+      (rem(year,4) == 0 and rem(year,100) != 0) or (rem(year, 400) == 0)
+  end
+
+end
+
+defmodule Cards do
+
+  def make_deck do
+    suits = ["Clubs", "Diamonds", "Hearts", "Spades"]
+    ranks = ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2"]
+    for rank <- ranks, suite <- suits, do: {rank, suite}
+  end
+
+  def shuffle(deck) do
+    :random.seed(:erlang.now())
+    shuffle(deck, [])
+  end
+
+  defp shuffle([], acc), do: acc
+  defp shuffle(deck, acc) do
+    {leading, [h, t]} = Enum.split(deck, :random.uniform(deck, Enum.count(deck)) - 1)
+    shuffle(leading ++ t, [h | acc])
+  end
+
+end
 
 f1 = fn(x) -> x * x end
 IO.puts f1.(7)
@@ -49,3 +91,14 @@ IO.puts "Male or older: #{inspect Calculus.male_or_older(data)}"
 
 data = [7, 2, 9]
 IO.puts "#{inspect data} mean: #{inspect Calculus.mean(data)} stddev: #{inspect Calculus.std_deviation(data)}"
+
+IO.puts Dates.julian("2013-12-31")
+IO.puts Dates.julian("2012-12-31")
+IO.puts Dates.julian("2012-02-05")
+IO.puts Dates.julian("2013-02-05")
+IO.puts Dates.julian("1900-03-01")
+IO.puts Dates.julian("2000-03-01")
+IO.puts Dates.julian("2013-01-01")
+IO.puts ""
+
+IO.puts "#{inspect Cards.make_deck}"
