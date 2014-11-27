@@ -65,7 +65,7 @@ defmodule Cards do
 
   defp shuffle([], acc), do: acc
   defp shuffle(deck, acc) do
-    {leading, [h, t]} = Enum.split(deck, :random.uniform(deck, Enum.count(deck)) - 1)
+    {leading, [h | t]} = Enum.split(deck, :random.uniform(Enum.count(deck)) - 1)
     shuffle(leading ++ t, [h | acc])
   end
 
@@ -101,4 +101,6 @@ IO.puts Dates.julian("2000-03-01")
 IO.puts Dates.julian("2013-01-01")
 IO.puts ""
 
-IO.puts "#{inspect Cards.make_deck}"
+deck = Cards.make_deck
+IO.puts "#{inspect deck}"
+IO.puts "#{inspect Cards.shuffle(deck)}"
