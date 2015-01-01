@@ -48,8 +48,7 @@ defmodule Player do
     receive do
       {:draw, sender, count} -> handle_msg(handle_draw(state, sender, count))
       {:cards, cards} -> handle_msg(handle_cards(state, cards))
-      {:stop} -> 
-        Logger.debug "#{inspect state} stopping"
+      {:stop} -> Logger.debug "#{inspect state} stopping"
     end
   end
 
@@ -62,7 +61,7 @@ defmodule Player do
 
   defp handle_cards(%PlayerState{} = state, cards) do 
     Logger.debug("Received new cards #{inspect cards} #{inspect state}")
-    %{state | cards: state.cards ++ cards}
+    %{state | cards: state.cards ++ Deck.shuffle(cards)}
   end
 
 end
@@ -79,7 +78,7 @@ defmodule Game do
   require GameState
 
   def run() do
-    deck = Deck.make_test |> Deck.shuffle
+    deck = Deck.make |> Deck.shuffle
     {p1_cards, p2_cards} = Enum.split(deck, trunc(Enum.count(deck) / 2))
     {:ok, p1} = Player.start_link(:p1, p1_cards)
     {:ok, p2} = Player.start_link(:p2, p2_cards)
@@ -103,11 +102,11 @@ defmodule Game do
     cond do
       elem(p1_card, 0) > elem(p2_card, 0) ->
         send(state.p1, {:cards, state.board ++ p1_cards ++ p2_cards})
-        state = %{state | board: []}
+        state = put_in(state.board, [])
         begin_round(state, 1)
       elem(p2_card, 0) > elem(p1_card, 0) ->
         send(state.p2, {:cards, state.board ++ p1_cards ++ p2_cards})
-        state = %{state | board: []}
+        state = put_in(state.board, [])
         begin_round(state, 1)
       true ->         
         begin_round(state, 3)
