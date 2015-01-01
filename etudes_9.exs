@@ -1,8 +1,14 @@
 defmodule Deck do
 
-  def new do
+  def make do
     suits = ["Clubs", "Diamonds", "Hearts", "Spades"]
     ranks = [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2]
+    for rank <- ranks, suite <- suits, do: {rank, suite}
+  end
+
+  def make_test do 
+    suits = ["Clubs", "Diamonds"]
+    ranks = [5, 4, 3, 2]
     for rank <- ranks, suite <- suits, do: {rank, suite}
   end
 
@@ -22,33 +28,47 @@ defmodule Deck do
 
 end
 
+defmodule PlayerState do
+  defstruct id: nil, cards: []
+end
+
+
 defmodule Player do
 
   require Logger
+  require PlayerState
 
-  def start_link(cards) do
-    Logger.debug("Starting player process #{inspect self()} with #{inspect cards}")
-    {:ok, spawn_link(fn -> handle_msg(cards) end)}
+  def start_link(id, cards) do
+    state = %PlayerState{id: id, cards: cards}
+    Logger.debug("Starting player process #{inspect state}")
+    {:ok, spawn_link(fn -> handle_msg(state) end)}
   end
 
-  defp handle_msg(cards) do
+  defp handle_msg(%PlayerState{} = state) do
     receive do
-      {:battle, dealer} -> handle_msg(handle_battle(cards, dealer))
-      {:war, dealer} -> handle_msg(handle_war(cards, dealer))
-      {:cards, received_cards} -> handle_msg([cards | received_cards])
+      {:draw, sender, count} -> handle_msg(handle_draw(state, sender, count))
+      {:cards, cards} -> handle_msg(handle_cards(state, cards))
       {:stop} -> 
-        Logger.debug "#{inspect self()} #{inspect cards} stopping"
+        Logger.debug "#{inspect state} stopping"
     end
   end
 
-  defp handle_battle(cards, dealer) do
-    Logger.debug("Received :battle request from #{inspect dealer} #{inspect cards}")
+  defp handle_draw(%PlayerState{} = state, sender, count) do
+    Logger.debug("Received draw request #{inspect state} #{inspect count}")
+    {drawn, rest} = Enum.split(state.cards, count)
+    send(sender, {:ok, state.id, drawn})
+    %{state | cards: rest}
   end
 
-  defp handle_war(cards, dealer) do 
-    Logger.debug("Received :war request from #{inspect dealer} #{inspect cards}")
+  defp handle_cards(%PlayerState{} = state, cards) do 
+    Logger.debug("Received new cards #{inspect cards} #{inspect state}")
+    %{state | cards: state.cards ++ cards}
   end
 
+end
+
+defmodule GameState do
+  defstruct players: [], board: [], p1: nil, p2: nil
 end
 
 defmodule Game do
@@ -56,43 +76,56 @@ defmodule Game do
   require Deck
   require Player
   require Logger
+  require GameState
 
   def run() do
-    {p1_cards, p2_cards} = Deck.new |> Deck.shuffle |> Enum.split 26
-    {:ok, p1} = Player.start_link(p1_cards)
-    {:ok, p2} = Player.start_link(p2_cards)
-        
-    state = %{:players => [p1, p2], :board => [], :responses => 0}
+    deck = Deck.make_test |> Deck.shuffle
+    {p1_cards, p2_cards} = Enum.split(deck, trunc(Enum.count(deck) / 2))
+    {:ok, p1} = Player.start_link(:p1, p1_cards)
+    {:ok, p2} = Player.start_link(:p2, p2_cards)
+
+    state = %GameState{players: [p1, p2], p1: p1, p2: p2}
 
     Logger.debug "Begin game #{inspect state}"
 
-    game_loop(:begin, state)
+    begin_round(state, 1)
   end
 
-  defp game_loop(:begin, state) do
-    type = round_type(state)
-    for pid <- state[:players] do
-      Logger.debug("Sending #{inspect type} to #{inspect pid}")
-      send(pid, {round_type(state), self()})
-    end
-    state = %{state | :responses => 0}
-    Logger.debug "Begin round #{inspect state}"
-    game_loop(:wait, state)    
+  defp begin_round(%GameState{} = state, num_cards) do
+    Logger.debug "Requesting cards #{inspect state} #{num_cards}"
+    for pid <- state.players, do: send(pid, {:draw, self(), num_cards})
+    wait_cards(state, [], [], 0)
   end
 
-  defp game_loop(:wait, %{responses: 2} = state) do
-    Logger.debug "Received cards from all players #{inspect state}"
+  defp wait_cards(%GameState{} = state, [p1_card|_] = p1_cards, [p2_card|_] = p2_cards, 2) do
+    Logger.debug "Received cards from all players #{inspect state} #{inspect p1_card} #{inspect p1_cards} #{inspect p2_card} #{inspect p2_cards}"    
+
+    cond do
+      elem(p1_card, 0) > elem(p2_card, 0) ->
+        send(state.p1, {:cards, state.board ++ p1_cards ++ p2_cards})
+        state = %{state | board: []}
+        begin_round(state, 1)
+      elem(p2_card, 0) > elem(p1_card, 0) ->
+        send(state.p2, {:cards, state.board ++ p1_cards ++ p2_cards})
+        state = %{state | board: []}
+        begin_round(state, 1)
+      true ->         
+        begin_round(state, 3)
+    end    
   end
 
-  defp game_loop(:wait, state) do
+  defp wait_cards(%GameState{} = state, p1_cards, p2_cards, responses) do
     receive do
-      {:ok} -> game_loop(:wait_players, %{state | :responses => state[:responses] + 1})
-      after 1000 -> Logger.error "Timeout in wait_deal, exiting #{inspect state})"
+      {:ok, id, []} -> finish_game(state, id)
+      {:ok, :p1, cards} -> wait_cards(state, cards, p2_cards, responses + 1)
+      {:ok, :p2, cards} -> wait_cards(state, p1_cards, cards, responses + 1)
+      after 1000 ->  Logger.error "Timeout in wait_deal, exiting #{inspect state})"
     end
   end
 
-  defp round_type(%{board: []} = _state), do: :battle
-  defp round_type(%{} = _state), do: :war
+  defp finish_game(state, loser) do
+    Logger.debug "Finished game, loser was: #{loser} #{inspect state}"
+  end
 
 end
 
